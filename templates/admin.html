@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Party Control Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: white;
+        }
+
+        .admin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .panel h2 {
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+        }
+
+        /* Party Control Styles */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            padding: 12px 20px;
+            border-radius: 25px;
+            margin-bottom: 2rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .status-off {
+            background: rgba(255, 107, 107, 0.2);
+            border: 2px solid #ff6b6b;
+            color: #ff6b6b;
+        }
+
+        .status-on {
+            background: rgba(76, 207, 196, 0.2);
+            border: 2px solid #4ecdc4;
+            color: #4ecdc4;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .party-toggle-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 2rem 0;
+        }
+
+        .party-switch {
+            position: relative;
+            width: 200px;
+            height: 100px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .switch-track {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a6f);
+            border-radius: 50px;
+            box-shadow: 
+                inset 0 8px 16px rgba(0, 0, 0, 0.3),
+                0 8px 25px rgba(255, 107, 107, 0.4);
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .switch-track.active {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            box-shadow: 
+                inset 0 8px 16px rgba(0, 0, 0, 0.2),
+                0 8px 25px rgba(76, 207, 196, 0.6),
+                0 0 40px rgba(76, 207, 196, 0.3);
+        }
+
+        .switch-ball {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            border-radius: 50%;
+            left: 10px;
+            top: 10px;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 
+                0 8px 20px rgba(0, 0, 0, 0.3),
+                inset 0 2px 4px rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            z-index: 2;
+        }
+
+        .switch-track.active .switch-ball {
+            transform: translateX(100px);
+        }
+
+        .switch-labels {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 25px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .switch-label {
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            color: white;
+        }
+
+        .switch-label.off {
+            opacity: 1;
+        }
+
+        .switch-label.on {
+            opacity: 0.3;
+        }
+
+        .switch-track.active .switch-label.off {
+            opacity: 0.3;
+        }
+
+        .switch-track.active .switch-label.on {
+            opacity: 1;
+        }
+
+        /* QR Code Styles */
+        .qr-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .qr-code {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .qr-code:hover {
+            transform: scale(1.05);
+        }
+
+        .qr-code img {
+            display: block;
+            width: 200px;
+            height: 200px;
+        }
+
+        .url-display {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 12px 20px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #4ecdc4;
+            word-break: break-all;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .url-display:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #4ecdc4;
+        }
+
+        /* Connected Users Styles */
+        .users-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .user-count {
+            background: rgba(76, 207, 196, 0.2);
+            color: #4ecdc4;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            border: 2px solid #4ecdc4;
+        }
+
+        .users-list {
+            max-height: 400px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #4ecdc4 transparent;
+        }
+
+        .users-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .users-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .users-list::-webkit-scrollbar-thumb {
+            background: #4ecdc4;
+            border-radius: 3px;
+        }
+
+        .user-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+            border-left: 3px solid #4ecdc4;
+        }
+
+        .user-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(5px);
+        }
+
+        .user-ip {
+            font-weight: bold;
+            color: #4ecdc4;
+            font-family: 'Courier New', monospace;
+        }
+
+        .user-device {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .user-time {
+            font-size: 0.8rem;
+            opacity: 0.6;
+            float: right;
+        }
+
+        .loading-qr {
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .no-users {
+            text-align: center;
+            opacity: 0.6;
+            padding: 2rem;
+            font-style: italic;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .dot-off {
+            background: #ff6b6b;
+        }
+
+        .dot-on {
+            background: #4ecdc4;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        @media (max-width: 768px) {
+            .admin-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Party Control Panel -->
+        <div class="panel">
+            <h2>🎉 Party Control</h2>
+            
+            <div id="statusIndicator" class="status-indicator status-off">
+                <span class="status-dot dot-off"></span>
+                <span id="statusText">Party Mode: OFF</span>
+            </div>
+
+            <div class="party-toggle-container">
+                <div class="party-switch" onclick="toggleParty()">
+                    <div class="switch-track" id="switchTrack">
+                        <div class="switch-labels">
+                            <span class="switch-label off">OFF</span>
+                            <span class="switch-label on">PARTY</span>
+                        </div>
+                        <div class="switch-ball">
+                            <span id="switchIcon">😴</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="qr-container">
+                <div id="qrCode" class="loading-qr">🔄</div>
+                <div class="url-display" id="partyUrl" onclick="copyUrl()">
+                    Loading...
+                </div>
+                <div style="font-size: 0.8rem; opacity: 0.6; text-align: center;">
+                    📱 Scan QR or click URL to copy
+                </div>
+            </div>
+        </div>
+
+        <!-- Connected Users Panel -->
+        <div class="panel">
+            <div class="users-header">
+                <h2>👥 Connected Users</h2>
+                <div class="user-count" id="userCount">0 users</div>
+            </div>
+            
+            <div class="users-list" id="usersList">
+                <div class="no-users">
+                    No users connected yet.<br>
+                    Share the QR code to get the party started! 🎉
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const switchTrack = document.getElementById('switchTrack');
+        const switchIcon = document.getElementById('switchIcon');
+        const qrCodeElement = document.getElementById('qrCode');
+        const partyUrlElement = document.getElementById('partyUrl');
+        const userCountElement = document.getElementById('userCount');
+        const usersListElement = document.getElementById('usersList');
+        
+        let currentStatus = 'off';
+        let partyUrl = '';
+        let socket;
+
+        // Initialize socket connection
+        function initSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Admin connected to server');
+            });
+
+            socket.on('user_connected', function(data) {
+                updateUsersList(data.users, data.count);
+            });
+
+            socket.on('user_disconnected', function(data) {
+                updateUsersList(data.users, data.count);
+            });
+
+            socket.on('party_mode', function(data) {
+                updateStatus(data.status);
+            });
+        }
+
+        function updateUsersList(users, count) {
+            userCountElement.textContent = `${count} user${count !== 1 ? 's' : ''}`;
+            
+            if (users.length === 0) {
+                usersListElement.innerHTML = `
+                    <div class="no-users">
+                        No users connected yet.<br>
+                        Share the QR code to get the party started! 🎉
+                    </div>
+                `;
+            } else {
+                usersListElement.innerHTML = users.map(user => `
+                    <div class="user-item">
+                        <span class="user-time">${user.connected_at}</span>
+                        <div class="user-ip">${user.ip}</div>
+                        <div class="user-device">${user.device}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function loadServerInfo() {
+            fetch('/api/server_info')
+                .then(response => response.json())
+                .then(data => {
+                    partyUrl = data.party_url;
+                    partyUrlElement.textContent = partyUrl;
+                    
+                    // Display QR code
+                    qrCodeElement.innerHTML = `<img src="${data.qr_code}" alt="Party QR Code">`;
+                    qrCodeElement.className = 'qr-code';
+                })
+                .catch(error => {
+                    console.error('Failed to load server info:', error);
+                    partyUrlElement.textContent = 'Failed to load URL';
+                    qrCodeElement.innerHTML = '❌';
+                    qrCodeElement.className = 'loading-qr';
+                });
+        }
+
+        function loadConnectedUsers() {
+            fetch('/api/connected_users')
+                .then(response => response.json())
+                .then(data => {
+                    updateUsersList(data.users, data.count);
+                })
+                .catch(error => {
+                    console.error('Failed to load connected users:', error);
+                });
+        }
+
+        function copyUrl() {
+            if (partyUrl) {
+                navigator.clipboard.writeText(partyUrl).then(() => {
+                    partyUrlElement.style.background = 'rgba(76, 207, 196, 0.3)';
+                    partyUrlElement.style.borderColor = '#4ecdc4';
+                    
+                    setTimeout(() => {
+                        partyUrlElement.style.background = 'rgba(255, 255, 255, 0.1)';
+                        partyUrlElement.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                    }, 1000);
+                    
+                    const originalText = partyUrlElement.textContent;
+                    partyUrlElement.textContent = '✅ Copied to clipboard!';
+                    setTimeout(() => {
+                        partyUrlElement.textContent = originalText;
+                    }, 2000);
+                }).catch(err => {
+                    alert('Failed to copy URL. Please copy manually: ' + partyUrl);
+                });
+            }
+        }
+
+        function updateStatus(status) {
+            currentStatus = status;
+            const isOn = status === 'on';
+            
+            if (isOn) {
+                statusIndicator.className = 'status-indicator status-on';
+                statusText.innerHTML = '<span class="status-dot dot-on"></span>Party Mode: ACTIVE';
+                switchTrack.classList.add('active');
+                switchIcon.textContent = '🎉';
+            } else {
+                statusIndicator.className = 'status-indicator status-off';
+                statusText.innerHTML = '<span class="status-dot dot-off"></span>Party Mode: OFF';
+                switchTrack.classList.remove('active');
+                switchIcon.textContent = '😴';
+            }
+        }
+
+        function toggleParty() {
+            const newStatus = currentStatus === 'on' ? 'off' : 'on';
+            const endpoint = newStatus === 'on' ? '/party_on' : '/party_off';
+            
+            fetch(endpoint)
+                .then(response => response.json())
+                .then(data => {
+                    updateStatus(newStatus);
+                    console.log('Party toggled:', data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to toggle party mode');
+                });
+        }
+
+        function checkStatus() {
+            fetch('/party_status')
+                .then(response => response.json())
+                .then(data => {
+                    updateStatus(data.status);
+                })
+                .catch(error => {
+                    console.error('Error checking status:', error);
+                });
+        }
+
+        // Initialize everything
+        initSocket();
+        loadServerInfo();
+        loadConnectedUsers();
+        checkStatus();
+    </script>
+</body>
+</html>

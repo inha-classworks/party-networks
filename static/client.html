@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Party Device</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(45deg, #1a1a2e, #16213e, #0f3460);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            text-align: center;
+            z-index: 10;
+            position: relative;
+            max-width: 90%;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            margin-bottom: 2rem;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 20px rgba(255, 255, 255, 0.5); }
+            to { text-shadow: 0 0 30px rgba(255, 255, 255, 0.8), 0 0 40px rgba(0, 255, 255, 0.6); }
+        }
+
+        #joinBtn {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
+            background-size: 400% 400%;
+            border: none;
+            color: white;
+            padding: 20px 40px;
+            font-size: clamp(1.2rem, 3vw, 1.5rem);
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            animation: gradientShift 3s ease infinite;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        #joinBtn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+        }
+
+        #joinBtn:active {
+            transform: translateY(-2px);
+        }
+
+        #gif {
+            width: clamp(300px, 70vw, 400px);
+            height: clamp(300px, 70vw, 400px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            margin: 2rem auto;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Party Mode Styles */
+        .party-mode {
+            animation: gentleColorShift 4s ease-in-out infinite;
+        }
+
+        @keyframes gentleColorShift {
+            0% { background: linear-gradient(45deg, #1a1a2e, #16213e, #0f3460); }
+            25% { background: linear-gradient(45deg, #2e1a2e, #3e1621, #460f34); }
+            50% { background: linear-gradient(45deg, #1a2e2e, #162138, #0f4634); }
+            75% { background: linear-gradient(45deg, #2e2e1a, #383816, #46340f); }
+            100% { background: linear-gradient(45deg, #1a1a2e, #16213e, #0f3460); }
+        }
+
+        .strobe-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+            display: none;
+        }
+
+        .party-mode .strobe-overlay {
+            display: block;
+            animation: subtleStrobe 2s ease-in-out infinite;
+        }
+
+        @keyframes subtleStrobe {
+            0%, 100% { background: rgba(255, 255, 255, 0.05); }
+            50% { background: rgba(0, 255, 255, 0.1); }
+        }
+
+        .particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: radial-gradient(circle, #fff, transparent);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .waiting-mode h1 {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+
+        .party-text {
+            font-size: clamp(3rem, 8vw, 4rem) !important;
+            animation: gentleTextDance 2s ease-in-out infinite, slowRainbow 6s linear infinite;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        @keyframes gentleTextDance {
+            0%, 100% { transform: rotate(-1deg) scale(1); }
+            50% { transform: rotate(1deg) scale(1.02); }
+        }
+
+        @keyframes slowRainbow {
+            0% { color: #ff6b6b; }
+            16.66% { color: #ffa726; }
+            33.33% { color: #ffeb3b; }
+            50% { color: #66bb6a; }
+            66.66% { color: #42a5f5; }
+            83.33% { color: #ab47bc; }
+            100% { color: #ff6b6b; }
+        }
+
+        .error-message {
+            background: rgba(255, 107, 107, 0.2);
+            border: 2px solid #ff6b6b;
+            color: #ff6b6b;
+            padding: 15px 25px;
+            border-radius: 15px;
+            margin-top: 1rem;
+            font-weight: bold;
+        }
+
+        .retry-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a6f);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            font-size: 1rem;
+            border-radius: 25px;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .retry-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            #joinBtn {
+                padding: 15px 30px;
+                letter-spacing: 1px;
+            }
+            
+            #gif {
+                margin: 1rem auto;
+            }
+        }
+
+        /* Prevent scrolling during party mode */
+        .party-mode body {
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="strobe-overlay"></div>
+    
+    <div class="container">
+        <h1 id="status">🎉 TAP TO JOIN THE PARTY 🎉</h1>
+        <button id="joinBtn" onclick="joinParty()">🚀 JOIN PARTY 🚀</button>
+        <div id="errorContainer"></div>
+        <img id="gif" src="" style="display:none;" />
+    </div>
+
+    <audio id="music" loop>
+        <source src="static/rickroll.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        let socket;
+        let particleInterval;
+        let connectionAttempts = 0;
+        const maxRetries = 3;
+        
+        const music = document.getElementById('music');
+        const gif = document.getElementById('gif');
+        const statusText = document.getElementById('status');
+        const joinBtn = document.getElementById('joinBtn');
+        const errorContainer = document.getElementById('errorContainer');
+
+        function createParticles() {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * window.innerWidth + 'px';
+            particle.style.top = Math.random() * window.innerHeight + 'px';
+            particle.style.animationDuration = (Math.random() * 3 + 2) + 's';
+            particle.style.opacity = Math.random();
+            
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffa726', '#ab47bc'];
+            particle.style.background = `radial-gradient(circle, ${colors[Math.floor(Math.random() * colors.length)]}, transparent)`;
+            
+            document.body.appendChild(particle);
+            
+            setTimeout(() => {
+                if (particle.parentNode) {
+                    particle.parentNode.removeChild(particle);
+                }
+            }, 5000);
+        }
+
+        function showError(message, showRetry = true) {
+            errorContainer.innerHTML = `
+                <div class="error-message">
+                    ${message}
+                </div>
+                ${showRetry ? '<button class="retry-btn" onclick="retryConnection()">🔄 RETRY</button>' : ''}
+            `;
+        }
+
+        function clearError() {
+            errorContainer.innerHTML = '';
+        }
+
+        function retryConnection() {
+            clearError();
+            joinParty();
+        }
+
+        function joinParty() {
+            // Clear any previous errors
+            clearError();
+            connectionAttempts++;
+
+            // Test audio unlock (required by browsers)
+            const audioPromise = music.play();
+            if (audioPromise !== undefined) {
+                audioPromise.then(() => {
+                    music.pause();
+                    music.currentTime = 0;
+                    connectToServer();
+                }).catch(err => {
+                    console.warn("Audio unlock failed, but continuing:", err);
+                    connectToServer();
+                });
+            } else {
+                connectToServer();
+            }
+        }
+
+        function connectToServer() {
+            // Hide join button and update status
+            joinBtn.style.display = 'none';
+            statusText.innerText = "⏳ CONNECTING TO PARTY SERVER... ⏳";
+            document.body.classList.add('waiting-mode');
+
+            try {
+                // Initialize socket connection
+                socket = io({
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true,
+                    reconnection: true,
+                    reconnectionAttempts: 3,
+                    reconnectionDelay: 1000
+                });
+
+                socket.on('connect', function() {
+                    console.log('🎉 Connected to party server!');
+                    connectionAttempts = 0; // Reset on successful connection
+                    statusText.innerText = "⏳ WAITING FOR PARTY MODE... ⏳";
+                    clearError();
+                });
+
+                socket.on('connect_error', function(error) {
+                    console.error('❌ Connection failed:', error);
+                    handleConnectionError();
+                });
+
+                socket.on('disconnect', function(reason) {
+                    console.log('👋 Disconnected from server:', reason);
+                    if (reason === 'io server disconnect') {
+                        // Server disconnected us, try to reconnect
+                        socket.connect();
+                    }
+                });
+
+                socket.on('reconnect', function(attemptNumber) {
+                    console.log('🔄 Reconnected after', attemptNumber, 'attempts');
+                    clearError();
+                });
+
+                socket.on('reconnect_error', function(error) {
+                    console.error('❌ Reconnection failed:', error);
+                    handleConnectionError();
+                });
+
+                socket.on('party_mode', function(data) {
+                    const mode = data.status;
+                    console.log('🎊 Party mode update:', mode);
+
+                    if (mode === 'on') {
+                        // PARTY MODE ACTIVATED!
+                        document.body.classList.remove('waiting-mode');
+                        document.body.classList.add('party-mode');
+                        
+                        statusText.innerText = "🎊 PARTY MODE ACTIVATED! 🎊";
+                        statusText.classList.add('party-text');
+                        
+                        // Show party GIF - using exact filename you specified
+                        gif.src = 'static/rickroll-roll.gif';
+                        gif.style.display = 'block';
+                        
+                        // Handle gif loading error
+                        gif.onerror = function() {
+                            console.warn("GIF failed to load: rickroll-roll.gif not found in static folder");
+                            gif.style.display = 'none';
+                        };
+                        
+                        gif.onload = function() {
+                            console.log('🎬 Rick Roll GIF loaded successfully!');
+                        };
+                        
+                        // Start music with error handling - using exact filename you specified
+                        if (music.children.length > 0) {
+                            music.play().then(() => {
+                                console.log('🎵 Rick Roll music started!');
+                            }).catch(err => {
+                                console.warn("Music playback failed - rickroll.mp3 might be missing:", err);
+                                // Party continues without music
+                            });
+                        }
+                        
+                        // Create particle effects
+                        particleInterval = setInterval(createParticles, 100);
+                        
+                    } else {
+                        // PARTY MODE OFF
+                        document.body.classList.remove('party-mode');
+                        document.body.classList.add('waiting-mode');
+                        
+                        statusText.innerText = "⏸️ PARTY PAUSED - WAITING... ⏸️";
+                        statusText.classList.remove('party-text');
+                        
+                        // Hide GIF
+                        gif.style.display = 'none';
+                        
+                        // Stop music
+                        music.pause();
+                        music.currentTime = 0;
+                        
+                        // Stop particles
+                        if (particleInterval) {
+                            clearInterval(particleInterval);
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('❌ Socket initialization failed:', error);
+                handleConnectionError();
+            }
+        }
+
+        function handleConnectionError() {
+            document.body.classList.remove('waiting-mode');
+            statusText.innerText = "🎉 TAP TO JOIN THE PARTY 🎉";
+            joinBtn.style.display = 'block';
+            
+            if (connectionAttempts >= maxRetries) {
+                showError("❌ Unable to connect to party server. Please check your connection and try again.", true);
+            } else {
+                showError(`❌ Connection failed. Attempt ${connectionAttempts}/${maxRetries}`, true);
+            }
+        }
+
+        // Clean up particles on window resize
+        window.addEventListener('resize', () => {
+            const particles = document.querySelectorAll('.particle');
+            particles.forEach(particle => {
+                if (particle.parentNode) {
+                    particle.parentNode.removeChild(particle);
+                }
+            });
+        });
+
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // Page is hidden, pause music if playing
+                if (!music.paused) {
+                    music.pause();
+                }
+            } else {
+                // Page is visible, resume music if in party mode
+                if (document.body.classList.contains('party-mode')) {
+                    music.play().catch(err => console.warn("Failed to resume music:", err));
+                }
+            }
+        });
+
+        // Prevent zoom on mobile
+        document.addEventListener('touchstart', function(event) {
+            if (event.touches.length > 1) {
+                event.preventDefault();
+            }
+        });
+
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function(event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    </script>
+</body>
+</html>
