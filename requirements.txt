@@ -5,6 +5,7 @@ Pillow==11.2.1
 python-dotenv==1.0.0
 qrcode==8.2
 flask
+requests
 flask-socketio
 python-dotenv
 qrcode
